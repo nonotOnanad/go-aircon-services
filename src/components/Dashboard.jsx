@@ -66,17 +66,52 @@ export default function Dashboard({ user, logout, addToast }) {
     return true
   })
 
-  const saveBooking = async (id, patch) => {
-    const { error } = await db.bookings().update(patch).eq('id', id)
-    if (error) { addToast('Save failed', error.message, 'err'); return }
-    await loadAll(); setModal(null)
-    addToast('Booking updated', '', 'ok')
-  }
-
   const deleteBooking = async id => {
     const { error } = await db.bookings().delete().eq('id', id)
     if (error) { addToast('Delete failed', error.message, 'err'); return }
     await loadAll(); setModal(null); addToast('Booking deleted', '', 'info')
+  }
+
+  // ---- Email confirmation ----
+  const sendConfirmationEmail = async (booking) => {
+    if (!booking.email) return  // no email on record, skip silently
+    try {
+      const res = await fetch('/api/send-confirmation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to:        booking.email,
+          name:      booking.client_name,
+          ref:       booking.ref,
+          service:   booking.service,
+          work_type: booking.work_type,
+          schedule:  booking.schedule || booking.pref_date,
+          time:      booking.pref_time,
+          address:   booking.address,
+          units:     booking.units,
+          model:     booking.model,
+          notes:     booking.notes,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      addToast('Email sent!', `Confirmation sent to ${booking.email}`, 'ok')
+    } catch (err) {
+      addToast('Email not sent', err.message || 'Check the RESEND_API_KEY env var.', 'info')
+    }
+  }
+
+  const saveBooking = async (id, patch) => {
+    const prev = bookings.find(b => b.id === id)
+    const { error } = await db.bookings().update(patch).eq('id', id)
+    if (error) { addToast('Save failed', error.message, 'err'); return }
+    // Send confirmation email when status changes TO Confirmed
+    if (patch.status === 'Confirmed' && prev?.status !== 'Confirmed') {
+      const updated = { ...prev, ...patch }
+      await sendConfirmationEmail(updated)
+    }
+    await loadAll(); setModal(null)
+    addToast('Booking updated', '', 'ok')
   }
 
   // ---- Quotes ----
@@ -520,6 +555,13 @@ function BookingModal({ b, onClose, onSave, onDelete }) {
           <select value={status} onChange={e=>setStatus(e.target.value)}>
             {['Pending','Confirmed','In Progress','Completed','Cancelled'].map(s=><option key={s}>{s}</option>)}
           </select>
+          {status === 'Confirmed' && b.status !== 'Confirmed' && (
+            <div style={{marginTop:7,padding:'8px 12px',background:'#e0ecfb',borderRadius:8,fontSize:'.82rem',color:'#1d5fb8',fontWeight:500}}>
+              📧 {b.email
+                ? <>A confirmation email will be sent to <b>{b.email}</b> when you save.</>
+                : <>No email on file — confirmation email will <b>not</b> be sent. Client can still be notified by phone.</>}
+            </div>
+          )}
         </div>
         <div className="frow">
           <div className="field"><label>Scheduled date</label><input type="date" value={schedule} onChange={e=>setSchedule(e.target.value)}/></div>
