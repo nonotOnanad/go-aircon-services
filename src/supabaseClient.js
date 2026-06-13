@@ -5,9 +5,9 @@ export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 )
 
-// Schema shorthand — all tables live in go_aircon schema
+// Tables live in public schema with goac_ prefix (custom schemas require extra Supabase config)
 export const db = {
-  bookings:   () => supabase.schema('go_aircon').from('bookings'),
-  quotations: () => supabase.schema('go_aircon').from('quotations'),
-  staff:      () => supabase.schema('go_aircon').from('staff'),
+  bookings:   () => supabase.from('goac_bookings'),
+  quotations: () => supabase.from('goac_quotations'),
+  staff:      () => supabase.from('goac_staff'),
 }
