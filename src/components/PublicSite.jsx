@@ -49,7 +49,7 @@ export default function PublicSite({ openLogin, addToast }) {
     if (!PHONE_RE.test(phone)) { addToast('Check mobile number', 'Use 11-digit format: 09171234567', 'err'); return }
     setBookLoading(true)
     const ref = genRef('GOAC')
-    const { error } = await db.bookings().insert({
+    const payload = {
       ref, client_name: bookForm.name.trim(), phone,
       email: bookForm.email.trim() || null,
       address: bookForm.address.trim(),
@@ -61,9 +61,25 @@ export default function PublicSite({ openLogin, addToast }) {
       schedule: bookForm.date || null,
       notes: bookForm.notes.trim() || null,
       status: 'Pending',
-    })
+    }
+    const { error } = await db.bookings().insert(payload)
+    if (error) { setBookLoading(false); addToast('Booking failed', error.message, 'err'); return }
+
+    // Notify GO Aircon business email
+    fetch('/api/notify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'booking',
+        ref, name: payload.client_name, phone, email: payload.email,
+        address: payload.address, service: payload.service,
+        work_type: payload.work_type, units: payload.units,
+        model: payload.model, pref_date: payload.pref_date,
+        pref_time: payload.pref_time, notes: payload.notes,
+      }),
+    }).catch(() => {}) // fire-and-forget — don't block the UI
+
     setBookLoading(false)
-    if (error) { addToast('Booking failed', error.message, 'err'); return }
     setBookForm({ name:'',phone:'',email:'',address:'',service:'',work:'Cleaning',units:1,model:'',date:'',time:'',notes:'' })
     setRefModal({ ref, kind: 'booking' })
   }
@@ -74,7 +90,7 @@ export default function PublicSite({ openLogin, addToast }) {
     if (!PHONE_RE.test(phone)) { addToast('Check mobile number', 'Use 11-digit format: 09171234567', 'err'); return }
     setQuoteLoading(true)
     const ref = genRef('GOAQ')
-    const { error } = await db.quotations().insert({
+    const payload = {
       ref, client_name: quoteForm.name.trim(), phone,
       email: quoteForm.email.trim() || null,
       address: quoteForm.address.trim(),
@@ -84,9 +100,24 @@ export default function PublicSite({ openLogin, addToast }) {
       budget: quoteForm.budget || null,
       notes: quoteForm.notes.trim() || null,
       status: 'New',
-    })
+    }
+    const { error } = await db.quotations().insert(payload)
+    if (error) { setQuoteLoading(false); addToast('Request failed', error.message, 'err'); return }
+
+    // Notify GO Aircon business email
+    fetch('/api/notify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'quotation',
+        ref, name: payload.client_name, phone, email: payload.email,
+        address: payload.address, unit_type: payload.unit_type,
+        hp: payload.hp, quantity: payload.quantity,
+        brand: payload.brand, budget: payload.budget, notes: payload.notes,
+      }),
+    }).catch(() => {}) // fire-and-forget
+
     setQuoteLoading(false)
-    if (error) { addToast('Request failed', error.message, 'err'); return }
     setQuoteForm({ name:'',phone:'',email:'',address:'',unitType:'',hp:'',quantity:1,brand:'',budget:'',notes:'' })
     setRefModal({ ref, kind: 'quote' })
   }
