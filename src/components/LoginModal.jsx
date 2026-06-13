@@ -40,9 +40,7 @@ export default function LoginModal({ onClose, onLogin, addToast }) {
             {loading ? 'Signing in…' : 'Log in'}
           </button>
         </form>
-        <div className="login-hint" style={{ marginTop: 14 }}>
-          Default admin — <b>admin</b> / <b>goaircon2025</b>
-        </div>
+
       </div>
     </Modal>
   )
