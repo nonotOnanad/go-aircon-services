@@ -99,17 +99,32 @@ export default function Dashboard({ user, logout, addToast }) {
   }
 
   // ---- Clients ----
+  const addMonths = (isoDate, n) => {
+    if (!isoDate) return null
+    const d = new Date(isoDate + 'T00:00:00')
+    d.setMonth(d.getMonth() + n)
+    return d.toISOString().slice(0, 10)
+  }
   const clientMap = {}
   bookings.forEach(b => {
-    const k = b.phone; if (!clientMap[k]) clientMap[k] = { name: b.client_name, phone: b.phone, email: b.email, bookings: 0, quotes: 0, last: b.created_at }
-    clientMap[k].bookings++; if (b.created_at > clientMap[k].last) clientMap[k].last = b.created_at
+    const k = b.phone
+    if (!clientMap[k]) clientMap[k] = { name: b.client_name, phone: b.phone, email: b.email, address: b.address, bookings: 0, quotes: 0, last: b.created_at, lastBooking: null }
+    clientMap[k].bookings++
+    if (b.created_at > clientMap[k].last) { clientMap[k].last = b.created_at }
+    // track most recent completed/scheduled booking for next service calc
+    const bDate = b.schedule || b.pref_date
+    if (bDate && (!clientMap[k].lastBooking || bDate > clientMap[k].lastBooking.date)) {
+      clientMap[k].lastBooking = { date: bDate, service: b.service, next_service_date: b.next_service_date, tech_notes: b.tech_notes, ref: b.ref, id: b.id }
+    }
   })
   quotes.forEach(q => {
-    const k = q.phone; if (!clientMap[k]) clientMap[k] = { name: q.client_name, phone: q.phone, email: q.email, bookings: 0, quotes: 0, last: q.created_at }
-    clientMap[k].quotes++; if (q.created_at > clientMap[k].last) clientMap[k].last = q.created_at
+    const k = q.phone
+    if (!clientMap[k]) clientMap[k] = { name: q.client_name, phone: q.phone, email: q.email, address: q.address, bookings: 0, quotes: 0, last: q.created_at, lastBooking: null }
+    clientMap[k].quotes++
+    if (q.created_at > clientMap[k].last) clientMap[k].last = q.created_at
   })
   const clients = Object.values(clientMap).sort((a, b) => (b.last||'').localeCompare(a.last||''))
-    .filter(c => !cQ || (c.name+c.phone+(c.email||'')).toLowerCase().includes(cQ.toLowerCase()))
+    .filter(c => !cQ || (c.name+c.phone+(c.email||'')+(c.address||'')).toLowerCase().includes(cQ.toLowerCase()))
 
   // ---- Staff ----
   const addModerator = async ({ name, username, password }) => {
@@ -289,24 +304,80 @@ export default function Dashboard({ user, logout, addToast }) {
           {tab === 'clients' && (
             <>
               <div className="toolbar">
-                <div className="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search clients…" value={cQ} onChange={e=>setCQ(e.target.value)}/></div>
+                <div className="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search name, phone, address…" value={cQ} onChange={e=>setCQ(e.target.value)}/></div>
                 <span className="muted" style={{fontSize:'.85rem'}}>{clients.length} client{clients.length!==1?'s':''}</span>
               </div>
-              <div className="tablecard">
-                {clients.length ? (
-                  <div className="tbl-scroll"><table className="tbl">
-                    <thead><tr><th>Client</th><th>Email</th><th>Bookings</th><th>Quotes</th><th>Last activity</th></tr></thead>
-                    <tbody>{clients.map(c => (
-                      <tr key={c.phone} style={{cursor:'default'}}>
-                        <td className="nm"><b>{c.name}</b><span><a href={`tel:${c.phone}`} style={{color:'var(--brand)'}}>{c.phone}</a></span></td>
-                        <td>{c.email||'—'}</td>
-                        <td><b style={{fontFamily:'var(--disp)'}}>{c.bookings}</b></td>
-                        <td><b style={{fontFamily:'var(--disp)'}}>{c.quotes}</b></td>
-                        <td>{fmtDate((c.last||'').slice(0,10))}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table></div>
-                ) : <Empty title="No clients yet" msg="Built automatically from bookings and quotation requests." />}
+              <div style={{display:'grid',gap:14}}>
+                {clients.length ? clients.map(c => {
+                  const lb = c.lastBooking
+                  const nextDate = lb?.next_service_date || (lb?.date ? addMonths(lb.date, 3) : null)
+                  const nextIsOverdue = nextDate && nextDate < todayISO()
+                  const nextIsSoon   = nextDate && !nextIsOverdue && nextDate <= addMonths(todayISO(), 1)
+                  return (
+                    <div key={c.phone} style={{background:'#fff',border:'1px solid var(--line)',borderRadius:'var(--r)',padding:'18px 20px'}}>
+                      {/* header row */}
+                      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:14}}>
+                        <div>
+                          <b style={{fontFamily:'var(--disp)',fontSize:'1.05rem'}}>{c.name}</b>
+                          <div style={{display:'flex',gap:14,marginTop:4,flexWrap:'wrap'}}>
+                            <a href={`tel:${c.phone}`} style={{color:'var(--brand)',fontWeight:600,fontSize:'.88rem'}}>{c.phone}</a>
+                            {c.email && <span style={{color:'var(--slate)',fontSize:'.88rem'}}>{c.email}</span>}
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:8}}>
+                          <span style={{background:'var(--ice)',color:'var(--navy)',borderRadius:20,padding:'.28em .7em',fontSize:'.78rem',fontWeight:600}}>{c.bookings} booking{c.bookings!==1?'s':''}</span>
+                          <span style={{background:'var(--ice)',color:'var(--navy)',borderRadius:20,padding:'.28em .7em',fontSize:'.78rem',fontWeight:600}}>{c.quotes} quote{c.quotes!==1?'s':''}</span>
+                        </div>
+                      </div>
+                      {/* detail grid */}
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:'10px 24px'}}>
+                        {/* Address */}
+                        <div>
+                          <div style={{fontFamily:'var(--mono)',fontSize:'.67rem',letterSpacing:'.09em',textTransform:'uppercase',color:'var(--slate)',marginBottom:3}}>Address</div>
+                          <div style={{fontSize:'.9rem',color:'var(--ink)'}}>{c.address||'—'}</div>
+                        </div>
+                        {/* Last service */}
+                        <div>
+                          <div style={{fontFamily:'var(--mono)',fontSize:'.67rem',letterSpacing:'.09em',textTransform:'uppercase',color:'var(--slate)',marginBottom:3}}>Last service</div>
+                          <div style={{fontSize:'.9rem',color:'var(--ink)'}}>{lb ? <>{fmtDate(lb.date)} <span style={{color:'var(--slate)',fontSize:'.82rem'}}>· {lb.service}</span></> : '—'}</div>
+                        </div>
+                        {/* Next recommended */}
+                        <div>
+                          <div style={{fontFamily:'var(--mono)',fontSize:'.67rem',letterSpacing:'.09em',textTransform:'uppercase',color:'var(--slate)',marginBottom:3}}>Next recommended service</div>
+                          <div style={{fontSize:'.9rem',display:'flex',alignItems:'center',gap:7}}>
+                            {nextDate
+                              ? <><span style={{color: nextIsOverdue ? 'var(--bad)' : nextIsSoon ? 'var(--warn)' : 'var(--ok)',fontWeight:600}}>{fmtDate(nextDate)}</span>
+                                  <span style={{fontSize:'.72rem',padding:'.18em .5em',borderRadius:20,fontWeight:700,
+                                    background: nextIsOverdue ? 'var(--bad-bg)' : nextIsSoon ? 'var(--warn-bg)' : 'var(--ok-bg)',
+                                    color:      nextIsOverdue ? 'var(--bad)'    : nextIsSoon ? 'var(--warn)'    : 'var(--ok)'}}>
+                                    {nextIsOverdue ? 'Overdue' : nextIsSoon ? 'Due soon' : 'Upcoming'}
+                                  </span></>
+                              : <span style={{color:'var(--slate)'}}>—</span>}
+                          </div>
+                        </div>
+                        {/* Technician notes */}
+                        <div style={{gridColumn:'1 / -1'}}>
+                          <div style={{fontFamily:'var(--mono)',fontSize:'.67rem',letterSpacing:'.09em',textTransform:'uppercase',color:'var(--slate)',marginBottom:3}}>Technician notes (last visit)</div>
+                          <div style={{fontSize:'.88rem',color: lb?.tech_notes ? 'var(--ink)' : 'var(--slate-2)',
+                            background:'var(--ice)',borderRadius:9,padding:'9px 12px',minHeight:38,lineHeight:1.5}}>
+                            {lb?.tech_notes || <em>No notes yet — add them from the booking record after service.</em>}
+                          </div>
+                        </div>
+                      </div>
+                      {/* open last booking */}
+                      {lb && (
+                        <div style={{marginTop:12,textAlign:'right'}}>
+                          <button className="btn btn-soft btn-sm" onClick={() => {
+                            const bk = bookings.find(x=>x.id===lb.id)
+                            if(bk) setModal({ type:'booking', data:bk })
+                          }}>
+                            Open booking {lb.ref} →
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                }) : <div className="tablecard"><Empty title="No clients yet" msg="Built automatically from bookings and quotation requests." /></div>}
               </div>
             </>
           )}
@@ -413,9 +484,21 @@ function Empty({ title, msg }) {
 }
 
 function BookingModal({ b, onClose, onSave, onDelete }) {
-  const [status,   setStatus]   = useState(b.status)
-  const [schedule, setSchedule] = useState(b.schedule || b.pref_date || '')
-  const [time,     setTime]     = useState(b.pref_time || '')
+  const [status,      setStatus]      = useState(b.status)
+  const [schedule,    setSchedule]    = useState(b.schedule || b.pref_date || '')
+  const [time,        setTime]        = useState(b.pref_time || '')
+  const [techNotes,   setTechNotes]   = useState(b.tech_notes || '')
+  const [nextService, setNextService] = useState(b.next_service_date || '')
+
+  // Auto-suggest next service = schedule + 3 months
+  const suggestNext = () => {
+    const base = schedule || b.pref_date
+    if (!base) return
+    const d = new Date(base + 'T00:00:00')
+    d.setMonth(d.getMonth() + 3)
+    setNextService(d.toISOString().slice(0, 10))
+  }
+
   return (
     <Modal onClose={onClose} wide>
       <ModalHead title={b.client_name} sub={b.ref} onClose={onClose} />
@@ -427,9 +510,12 @@ function BookingModal({ b, onClose, onSave, onDelete }) {
           {b.email && <><dt>Email</dt><dd>{b.email}</dd></>}
           <dt>Address</dt><dd>{b.address}</dd>
           <dt>Preferred</dt><dd>{b.pref_date ? `${b.pref_date} · ${b.pref_time||''}` : '—'}</dd>
-          {b.notes && <><dt>Notes</dt><dd>{b.notes}</dd></>}
+          {b.notes && <><dt>Client notes</dt><dd>{b.notes}</dd></>}
           <dt>Booked</dt><dd>{new Date(b.created_at).toLocaleString('en-PH')}</dd>
         </dl>
+
+        <div style={{height:1,background:'var(--line)',margin:'4px 0 16px'}}/>
+
         <div className="field"><label>Status</label>
           <select value={status} onChange={e=>setStatus(e.target.value)}>
             {['Pending','Confirmed','In Progress','Completed','Cancelled'].map(s=><option key={s}>{s}</option>)}
@@ -439,8 +525,34 @@ function BookingModal({ b, onClose, onSave, onDelete }) {
           <div className="field"><label>Scheduled date</label><input type="date" value={schedule} onChange={e=>setSchedule(e.target.value)}/></div>
           <div className="field"><label>Time window</label><input value={time} onChange={e=>setTime(e.target.value)} placeholder="e.g. Morning"/></div>
         </div>
-        <div style={{display:'flex',gap:10,marginTop:8}}>
-          <button className="btn btn-primary" style={{flex:1}} onClick={() => onSave(b.id, { status, schedule: schedule||null, pref_time: time||null })}>Save changes</button>
+
+        <div style={{height:1,background:'var(--line)',margin:'4px 0 16px'}}/>
+
+        <div className="field">
+          <label>Technician notes <span style={{fontWeight:400,color:'var(--slate)',fontSize:'.8rem'}}>(after service)</span></label>
+          <textarea value={techNotes} onChange={e=>setTechNotes(e.target.value)}
+            placeholder="e.g. Cleaned filters, recharged freon 0.5kg, compressor running well. Recommend check-up in 3 months." style={{minHeight:80}}/>
+        </div>
+        <div className="field">
+          <label style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            Next recommended service date
+            <button type="button" className="btn btn-soft btn-sm" onClick={suggestNext}
+              style={{fontWeight:600,fontSize:'.75rem'}}>
+              Auto (+3 months)
+            </button>
+          </label>
+          <input type="date" value={nextService} onChange={e=>setNextService(e.target.value)}/>
+          <div className="hint">Auto-filled as 3 months after the scheduled date. Shown on the client record.</div>
+        </div>
+
+        <div style={{display:'flex',gap:10,marginTop:12}}>
+          <button className="btn btn-primary" style={{flex:1}} onClick={() => onSave(b.id, {
+            status,
+            schedule:          schedule    || null,
+            pref_time:         time        || null,
+            tech_notes:        techNotes   || null,
+            next_service_date: nextService || null,
+          })}>Save changes</button>
           <button className="btn btn-danger" onClick={() => onDelete(b.id)}>Delete</button>
         </div>
       </div>
