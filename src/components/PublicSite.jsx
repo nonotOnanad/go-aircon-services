@@ -29,16 +29,20 @@ const CheckIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 const today = () => new Date().toISOString().slice(0, 10)
 
 export default function PublicSite({ openLogin, addToast }) {
-  const [navOpen, setNavOpen]       = useState(false)
-  const [galFilter, setGalFilter]   = useState('All')
-  const [lbIdx, setLbIdx]           = useState(null)
-  const [bookForm, setBookForm]     = useState({ name:'',phone:'',email:'',address:'',service:'',work:'Cleaning',units:1,model:'',date:'',time:'',notes:'' })
-  const [quoteForm, setQuoteForm]   = useState({ name:'',phone:'',email:'',address:'',unitType:'',hp:'',quantity:1,brand:'',budget:'',notes:'' })
-  const [ocularForm, setOcularForm]   = useState({ name:'',phone:'',email:'',address:'',purpose:'',date:'',time:'',notes:'' })
-  const [ocularLoading, setOcularLoading] = useState(false)
-  const of = (k, v) => setOcularForm(f => ({ ...f, [k]: v }))
+  const [navOpen, setNavOpen]           = useState(false)
+  const [galFilter, setGalFilter]       = useState('All')
+  const [lbIdx, setLbIdx]               = useState(null)
+  const [bookForm, setBookForm]         = useState({ name:'',phone:'',email:'',address:'',service:'',work:'Cleaning',units:1,model:'',date:'',time:'',notes:'' })
+  const [quoteForm, setQuoteForm]       = useState({ name:'',phone:'',email:'',address:'',unitType:'',hp:'',quantity:1,brand:'',budget:'',notes:'' })
+  const [ocularForm, setOcularForm]     = useState({ name:'',phone:'',email:'',address:'',purpose:'',date:'',time:'',notes:'' })
+  const [bookLoading, setBookLoading]   = useState(false)
   const [quoteLoading, setQuoteLoading] = useState(false)
-  const [refModal, setRefModal]     = useState(null)  // { ref, kind }
+  const [ocularLoading, setOcularLoading] = useState(false)
+  const [refModal, setRefModal]         = useState(null)
+
+  const bf = (k, v) => setBookForm(f  => ({ ...f, [k]: v }))
+  const qf = (k, v) => setQuoteForm(f => ({ ...f, [k]: v }))
+  const of = (k, v) => setOcularForm(f => ({ ...f, [k]: v }))
 
   const galCats = ['All', ...Array.from(new Set(GALLERY.map(g => g.cat)))]
   const galItems = galFilter === 'All' ? GALLERY : GALLERY.filter(g => g.cat === galFilter)
@@ -158,9 +162,6 @@ export default function PublicSite({ openLogin, addToast }) {
     setQuoteForm({ name:'',phone:'',email:'',address:'',unitType:'',hp:'',quantity:1,brand:'',budget:'',notes:'' })
     setRefModal({ ref, kind: 'quote' })
   }
-
-  const bf = (k, v) => setBookForm(f => ({ ...f, [k]: v }))
-  const qf = (k, v) => setQuoteForm(f => ({ ...f, [k]: v }))
 
   return (
     <div id="site">
