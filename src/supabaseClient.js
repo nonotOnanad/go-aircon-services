@@ -10,4 +10,5 @@ export const db = {
   bookings:   () => supabase.from('goac_bookings'),
   quotations: () => supabase.from('goac_quotations'),
   staff:      () => supabase.from('goac_staff'),
+  ocular:     () => supabase.from('goac_ocular'),
 }

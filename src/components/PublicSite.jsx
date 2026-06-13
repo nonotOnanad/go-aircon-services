@@ -34,7 +34,9 @@ export default function PublicSite({ openLogin, addToast }) {
   const [lbIdx, setLbIdx]           = useState(null)
   const [bookForm, setBookForm]     = useState({ name:'',phone:'',email:'',address:'',service:'',work:'Cleaning',units:1,model:'',date:'',time:'',notes:'' })
   const [quoteForm, setQuoteForm]   = useState({ name:'',phone:'',email:'',address:'',unitType:'',hp:'',quantity:1,brand:'',budget:'',notes:'' })
-  const [bookLoading, setBookLoading] = useState(false)
+  const [ocularForm, setOcularForm]   = useState({ name:'',phone:'',email:'',address:'',purpose:'',date:'',time:'',notes:'' })
+  const [ocularLoading, setOcularLoading] = useState(false)
+  const of = (k, v) => setOcularForm(f => ({ ...f, [k]: v }))
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [refModal, setRefModal]     = useState(null)  // { ref, kind }
 
@@ -42,6 +44,41 @@ export default function PublicSite({ openLogin, addToast }) {
   const galItems = galFilter === 'All' ? GALLERY : GALLERY.filter(g => g.cat === galFilter)
 
   const scrollTo = id => { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); setNavOpen(false) }
+
+  const submitOcular = async e => {
+    e.preventDefault()
+    const phone = ocularForm.phone.replace(/\s/g, '')
+    if (!PHONE_RE.test(phone)) { addToast('Check mobile number', 'Use 11-digit format: 09171234567', 'err'); return }
+    setOcularLoading(true)
+    const ref = genRef('GOAV')
+    const payload = {
+      ref, client_name: ocularForm.name.trim(), phone,
+      email: ocularForm.email.trim() || null,
+      address: ocularForm.address.trim(),
+      purpose: ocularForm.purpose,
+      pref_date: ocularForm.date || null,
+      pref_time: ocularForm.time || null,
+      notes: ocularForm.notes.trim() || null,
+      status: 'Pending',
+    }
+    const { error } = await db.ocular().insert(payload)
+    if (error) { setOcularLoading(false); addToast('Request failed', error.message, 'err'); return }
+    // Notify GO Aircon business email
+    fetch('/api/notify-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'ocular',
+        ref, name: payload.client_name, phone, email: payload.email,
+        address: payload.address, purpose: payload.purpose,
+        pref_date: payload.pref_date, pref_time: payload.pref_time,
+        notes: payload.notes,
+      }),
+    }).catch(() => {})
+    setOcularLoading(false)
+    setOcularForm({ name:'',phone:'',email:'',address:'',purpose:'',date:'',time:'',notes:'' })
+    setRefModal({ ref, kind: 'ocular' })
+  }
 
   const submitBooking = async e => {
     e.preventDefault()
@@ -150,6 +187,7 @@ export default function PublicSite({ openLogin, addToast }) {
           <div className="navlinks">
             <a onClick={() => scrollTo('services')}>Services</a>
             <a onClick={() => scrollTo('work')}>Our Work</a>
+            <a onClick={() => scrollTo('ocular')}>Ocular Visit</a>
             <a onClick={() => scrollTo('book')}>Book a Service</a>
             <a onClick={() => scrollTo('quote')}>Get a Quote</a>
             <a onClick={() => scrollTo('contact')}>Contact</a>
@@ -206,9 +244,9 @@ export default function PublicSite({ openLogin, addToast }) {
                     {s.split(' ')[0]}
                   </button>
                 ))}
-                <button className="qbtn" onClick={() => scrollTo('quote')}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                  New Unit
+                <button className="qbtn" onClick={() => scrollTo('ocular')}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  Ocular Visit
                 </button>
               </div>
             </div>
@@ -267,6 +305,89 @@ export default function PublicSite({ openLogin, addToast }) {
                 <div className="cap">{g.cap}</div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ---- OCULAR VISIT ---- */}
+      <section className="block" id="ocular">
+        <div className="wrap">
+          <div className="ocular-hero">
+            <div className="ocular-aside">
+              <span className="eyebrow">Free site visit</span>
+              <h3>Request an Ocular Visit</h3>
+              <div className="ocular-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                No charge for the site visit
+              </div>
+              <p className="muted">Not sure what service you need? Request a free ocular visit and our technician will come to your location to assess, recommend the right service, and give you an accurate quotation — no obligation.</p>
+              <div style={{marginTop:20,display:'flex',flexDirection:'column',gap:14}}>
+                {[
+                  ['🔍','On-site assessment','Our technician personally checks your unit or space and identifies exactly what needs to be done.'],
+                  ['📋','Accurate recommendations','Get expert advice on the best service, brand, or solution for your specific needs.'],
+                  ['💰','Free written quotation','We provide a clear breakdown of costs before any work begins — no surprises.'],
+                  ['📅','Pick your own schedule','Choose a date and time window that is convenient for you.'],
+                ].map(([ico, title, desc]) => (
+                  <div key={title} className="why">
+                    <span className="wic" style={{fontSize:'1.1rem',background:'#fff3e0',border:'1px solid #ffe0b2',color:'#e65100'}}>{ico}</span>
+                    <div><b>{title}</b><p>{desc}</p></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="formcard" style={{borderTop:'4px solid #e65100'}}>
+              <h3>Ocular visit request</h3>
+              <p className="fsub">Free on-site assessment — we come to you.</p>
+              <form onSubmit={submitOcular}>
+                <div className="frow">
+                  <div className="field"><label>Full name <span className="req">*</span></label>
+                    <input value={ocularForm.name} onChange={e=>of('name',e.target.value)} required placeholder="Juan Dela Cruz"/>
+                  </div>
+                  <div className="field"><label>Mobile number <span className="req">*</span></label>
+                    <input value={ocularForm.phone} onChange={e=>of('phone',e.target.value)} required placeholder="09XX XXX XXXX" inputMode="tel"/>
+                  </div>
+                </div>
+                <div className="field"><label>Email (optional)</label>
+                  <input type="email" value={ocularForm.email} onChange={e=>of('email',e.target.value)} placeholder="you@email.com"/>
+                </div>
+                <div className="field"><label>Property / visit address <span className="req">*</span></label>
+                  <input value={ocularForm.address} onChange={e=>of('address',e.target.value)} required placeholder="House no., street, barangay, city"/>
+                </div>
+                <div className="field"><label>Purpose of visit <span className="req">*</span></label>
+                  <select value={ocularForm.purpose} onChange={e=>of('purpose',e.target.value)} required>
+                    <option value="">Select a purpose…</option>
+                    <option>Aircon installation assessment</option>
+                    <option>Aircon repair / troubleshooting</option>
+                    <option>Brand new aircon unit assessment</option>
+                    <option>Washing machine assessment</option>
+                    <option>Refrigerator assessment</option>
+                    <option>General home appliance check</option>
+                    <option>Multiple units / commercial space</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div className="frow">
+                  <div className="field"><label>Preferred date <span className="req">*</span></label>
+                    <input type="date" value={ocularForm.date} onChange={e=>of('date',e.target.value)} min={today()} required/>
+                  </div>
+                  <div className="field"><label>Preferred time <span className="req">*</span></label>
+                    <select value={ocularForm.time} onChange={e=>of('time',e.target.value)} required>
+                      <option value="">Choose…</option>
+                      <option>Morning (8 AM – 12 NN)</option>
+                      <option>Afternoon (1 PM – 5 PM)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="field"><label>Additional notes (optional)</label>
+                  <textarea value={ocularForm.notes} onChange={e=>of('notes',e.target.value)}
+                    placeholder="e.g. 2-storey house, 3 rooms, existing units need check, etc."/>
+                </div>
+                <button className="btn btn-ocular btn-block" type="submit" disabled={ocularLoading}>
+                  {ocularLoading ? 'Submitting…' : '🏠 Request Ocular Visit'}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </section>
@@ -482,11 +603,13 @@ export default function PublicSite({ openLogin, addToast }) {
               <p className="muted" style={{marginBottom:14}}>
                 {refModal.kind === 'booking'
                   ? 'We received your booking request. Keep your reference number — our team will call to confirm the schedule.'
+                  : refModal.kind === 'ocular'
+                  ? 'We received your ocular visit request. Our team will call you to confirm the schedule for the free site assessment.'
                   : 'We\'ll prepare a written quotation and contact you with options and pricing soon.'}
               </p>
               <div className="login-hint" style={{textAlign:'center'}}>
                 <span className="muted" style={{fontSize:'.75rem',letterSpacing:'.1em',textTransform:'uppercase'}}>Reference number</span><br/>
-                <b style={{fontSize:'1.5rem',color: refModal.kind === 'booking' ? 'var(--brand)' : 'var(--frost-d)'}}>{refModal.ref}</b>
+                <b style={{fontSize:'1.5rem',color: refModal.kind === 'booking' ? 'var(--brand)' : refModal.kind === 'ocular' ? '#e65100' : 'var(--frost-d)'}}>{refModal.ref}</b>
               </div>
               <button className="btn btn-primary btn-block" style={{marginTop:16}} onClick={() => setRefModal(null)}>Done</button>
             </div>

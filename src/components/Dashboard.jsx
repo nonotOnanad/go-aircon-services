@@ -11,6 +11,7 @@ const initials = n => (n||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join(
 const TABS = [
   { key:'bookings',  label:'Bookings',          icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
   { key:'quotes',    label:'Quotations',         icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="15" y2="13"/></svg> },
+  { key:'ocular',    label:'Ocular Visits',      icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
   { key:'clients',   label:'Clients',            icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
   { key:'calendar',  label:'Calendar',           icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg> },
   { key:'staff',     label:'Staff Management',   icon:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>, adminOnly: true },
@@ -21,6 +22,11 @@ const QSTATUS = ['New','Quoted','Approved','Closed']
 
 function StatusBadge({ s }) {
   const map = { Pending:'b-pending', Confirmed:'b-confirmed', 'In Progress':'b-progress', Completed:'b-completed', Cancelled:'b-cancelled', New:'b-new', Quoted:'b-quoted', Approved:'b-approved', Closed:'b-closed' }
+  return <span className={`badge ${map[s]||'b-pending'}`}>{s}</span>
+}
+
+function OcularStatusBadge({ s }) {
+  const map = { Pending:'b-pending', Scheduled:'b-confirmed', Completed:'b-completed', Cancelled:'b-cancelled' }
   return <span className={`badge ${map[s]||'b-pending'}`}>{s}</span>
 }
 
@@ -38,6 +44,7 @@ export default function Dashboard({ user, logout, addToast }) {
   const [sideOpen, setSideOpen] = useState(false)
   const [bookings, setBookings] = useState([])
   const [quotes, setQuotes]     = useState([])
+  const [ocular, setOcular]     = useState([])
   const [staff, setStaff]       = useState([])
   const [loading, setLoading]   = useState(false)
   const [modal, setModal]       = useState(null)  // { type, data }
@@ -48,12 +55,13 @@ export default function Dashboard({ user, logout, addToast }) {
 
   const loadAll = useCallback(async () => {
     setLoading(true)
-    const [{ data: b }, { data: q }, { data: s }] = await Promise.all([
+    const [{ data: b }, { data: q }, { data: o }, { data: s }] = await Promise.all([
       db.bookings().select('*').order('created_at', { ascending: false }),
       db.quotations().select('*').order('created_at', { ascending: false }),
+      db.ocular().select('*').order('created_at', { ascending: false }),
       db.staff().select('*').order('created_at'),
     ])
-    setBookings(b || []); setQuotes(q || []); setStaff(s || [])
+    setBookings(b || []); setQuotes(q || []); setOcular(o || []); setStaff(s || [])
     setLoading(false)
   }, [])
 
@@ -231,6 +239,7 @@ export default function Dashboard({ user, logout, addToast }) {
               {t.icon}<span>{t.label}</span>
               {t.key==='bookings' && <span className="cnt">{bookings.length}</span>}
               {t.key==='quotes'   && <span className="cnt">{quotes.length}</span>}
+              {t.key==='ocular'   && <span className="cnt">{ocular.length}</span>}
             </button>
           ))}
         </nav>
@@ -331,6 +340,34 @@ export default function Dashboard({ user, logout, addToast }) {
                     ))}</tbody>
                   </table></div>
                 ) : <Empty title="No quotation requests yet" msg="New-unit requests appear here." />}
+              </div>
+            </>
+          )}
+
+          {/* OCULAR VISITS */}
+          {tab === 'ocular' && (
+            <>
+              <div className="stats">
+                <Stat icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>} label="Total" value={ocular.length} />
+                <Stat icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>} label="Pending" value={ocular.filter(o=>o.status==='Pending').length} />
+                <Stat icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>} label="Scheduled" value={ocular.filter(o=>o.status==='Scheduled').length} />
+                <Stat icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>} label="Completed" value={ocular.filter(o=>o.status==='Completed').length} />
+              </div>
+              <div className="tablecard">
+                {ocular.length ? (
+                  <div className="tbl-scroll"><table className="tbl">
+                    <thead><tr><th>Ref</th><th>Client</th><th>Purpose</th><th>Preferred Date</th><th>Status</th></tr></thead>
+                    <tbody>{ocular.map(o => (
+                      <tr key={o.id} onClick={() => setModal({ type:'ocular', data:o })}>
+                        <td><span className="ref" style={{color:'#e65100'}}>{o.ref}</span></td>
+                        <td className="nm"><b>{o.client_name}</b><span>{o.phone}</span></td>
+                        <td style={{fontSize:'.85rem'}}>{o.purpose}</td>
+                        <td>{fmtDate(o.schedule || o.pref_date)}<br/><span className="muted" style={{fontSize:'.77rem'}}>{o.pref_time}</span></td>
+                        <td><OcularStatusBadge s={o.status}/></td>
+                      </tr>
+                    ))}</tbody>
+                  </table></div>
+                ) : <Empty title="No ocular visit requests yet" msg="Ocular visit requests from the website will appear here." />}
               </div>
             </>
           )}
@@ -476,6 +513,18 @@ export default function Dashboard({ user, logout, addToast }) {
       {/* MODALS */}
       {modal?.type === 'booking' && <BookingModal b={modal.data} onClose={() => setModal(null)} onSave={saveBooking} onDelete={deleteBooking} />}
       {modal?.type === 'quote'   && <QuoteModal   q={modal.data} onClose={() => setModal(null)} onSave={saveQuote}   onDelete={deleteQuote}   />}
+      {modal?.type === 'ocular'  && <OcularModal  o={modal.data} onClose={() => setModal(null)}
+          onSave={async (id, patch) => {
+            const { error } = await db.ocular().update(patch).eq('id', id)
+            if (error) { addToast('Save failed', error.message, 'err'); return }
+            await loadAll(); setModal(null); addToast('Ocular visit updated', '', 'ok')
+          }}
+          onDelete={async id => {
+            const { error } = await db.ocular().delete().eq('id', id)
+            if (error) { addToast('Delete failed', error.message, 'err'); return }
+            await loadAll(); setModal(null); addToast('Record deleted', '', 'info')
+          }}
+        />}
       {modal?.type === 'dayDetail' && (
         <Modal onClose={() => setModal(null)}>
           <ModalHead title={fmtDate(modal.data.date)} onClose={() => setModal(null)} />
@@ -626,6 +675,73 @@ function QuoteModal({ q, onClose, onSave, onDelete }) {
         <div style={{display:'flex',gap:10,marginTop:8}}>
           <button className="btn btn-primary" style={{flex:1}} onClick={() => onSave(q.id, { status })}>Save changes</button>
           <button className="btn btn-danger" onClick={() => onDelete(q.id)}>Delete</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function OcularModal({ o, onClose, onSave, onDelete }) {
+  const [status,   setStatus]   = useState(o.status)
+  const [schedule, setSchedule] = useState(o.schedule || o.pref_date || '')
+  const [time,     setTime]     = useState(o.pref_time || '')
+  const [techNotes, setTechNotes] = useState(o.tech_notes || '')
+
+  return (
+    <Modal onClose={onClose} wide>
+      <ModalHead title={o.client_name} sub={o.ref} onClose={onClose} />
+      <div className="modal-body">
+        {/* orange accent bar */}
+        <div style={{background:'#fff3e0',border:'1px solid #ffe0b2',borderRadius:9,padding:'10px 14px',marginBottom:16,fontSize:'.88rem',color:'#bf360c',fontWeight:600,display:'flex',alignItems:'center',gap:8}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{width:17,height:17,flex:'none'}}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Ocular Visit Request
+        </div>
+        <dl className="dl">
+          <dt>Purpose</dt><dd>{o.purpose}</dd>
+          <dt>Phone</dt><dd><a href={`tel:${o.phone}`}>{o.phone}</a></dd>
+          {o.email   && <><dt>Email</dt><dd>{o.email}</dd></>}
+          <dt>Address</dt><dd>{o.address}</dd>
+          <dt>Preferred</dt><dd>{o.pref_date ? `${fmtDate(o.pref_date)} · ${o.pref_time||''}` : '—'}</dd>
+          {o.notes   && <><dt>Client notes</dt><dd>{o.notes}</dd></>}
+          <dt>Requested</dt><dd>{new Date(o.created_at).toLocaleString('en-PH')}</dd>
+        </dl>
+
+        <div style={{height:1,background:'var(--line)',margin:'4px 0 16px'}}/>
+
+        <div className="field"><label>Status</label>
+          <select value={status} onChange={e=>setStatus(e.target.value)}>
+            {['Pending','Scheduled','Completed','Cancelled'].map(s=><option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="frow">
+          <div className="field"><label>Scheduled visit date</label>
+            <input type="date" value={schedule} onChange={e=>setSchedule(e.target.value)}/>
+          </div>
+          <div className="field"><label>Time window</label>
+            <input value={time} onChange={e=>setTime(e.target.value)} placeholder="e.g. Morning"/>
+          </div>
+        </div>
+
+        <div style={{height:1,background:'var(--line)',margin:'4px 0 16px'}}/>
+
+        <div className="field">
+          <label>Technician notes <span style={{fontWeight:400,color:'var(--slate)',fontSize:'.8rem'}}>(after the visit)</span></label>
+          <textarea value={techNotes} onChange={e=>setTechNotes(e.target.value)}
+            placeholder="e.g. 2-bedroom unit, recommending 1.5HP split-type per room. Existing wiring suitable. Installation can proceed."
+            style={{minHeight:80}}/>
+        </div>
+
+        <div style={{display:'flex',gap:10,marginTop:12}}>
+          <button className="btn btn-primary" style={{flex:1,background:'#e65100',boxShadow:'0 6px 16px rgba(230,81,0,.28)'}}
+            onClick={() => onSave(o.id, {
+              status,
+              schedule:   schedule   || null,
+              pref_time:  time       || null,
+              tech_notes: techNotes  || null,
+            })}>
+            Save changes
+          </button>
+          <button className="btn btn-danger" onClick={() => onDelete(o.id)}>Delete</button>
         </div>
       </div>
     </Modal>

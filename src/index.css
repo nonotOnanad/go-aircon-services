@@ -168,6 +168,19 @@ section.block { padding: 72px 0; }
 .svc-note { text-align: center; margin-top: 20px; color: var(--slate); font-size: .93rem; }
 .svc-note b { color: var(--navy); }
 
+/* ---- Ocular Visit ---- */
+#ocular { background: linear-gradient(180deg, #fff8f0, var(--paper)); }
+.ocular-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
+.ocular-aside { padding: 4px; }
+.ocular-aside h3 { font-size: 1.45rem; margin-bottom: 10px; }
+.ocular-badge { display: inline-flex; align-items: center; gap: 7px; background: #fff3e0;
+  border: 1px solid #ffe0b2; color: #e65100; border-radius: var(--r-s);
+  padding: .5em 1em; font-weight: 600; font-size: .88rem; margin-bottom: 16px; }
+.ocular-badge svg { width: 17px; height: 17px; flex: none; }
+.btn-ocular { background: #e65100; color: #fff; box-shadow: 0 6px 16px rgba(230,81,0,.28); }
+.btn-ocular:hover { background: #bf360c; transform: translateY(-1px); }
+@media(max-width:760px) { .ocular-hero { grid-template-columns: 1fr; } }
+
 /* ---- Gallery ---- */
 #work { background: var(--paper); }
 .gal-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }

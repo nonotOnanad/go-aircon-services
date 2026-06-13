@@ -235,7 +235,112 @@ Open dashboard: ${WEBSITE}`
   }
 }
 
-export default async function handler(req, res) {
+function buildOcularEmail({ ref, name, phone, email, address, purpose, pref_date, pref_time, notes }) {
+  const dateDisplay = pref_date
+    ? new Date(pref_date + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    : 'Not specified'
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Ocular Visit Request — ${escHtml(ref)}</title></head>
+<body style="margin:0;padding:0;background:#fff8f0;font-family:'Segoe UI',Arial,sans-serif;color:#0a1f2e;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#fff8f0;padding:32px 0;">
+  <tr><td align="center">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;">
+
+    <!-- Header -->
+    <tr><td style="background:linear-gradient(135deg,#bf360c 0%,#e65100 100%);border-radius:16px 16px 0 0;padding:32px 40px;">
+      <div style="display:inline-block;background:#fff;border-radius:12px;padding:8px 14px;margin-bottom:16px;">
+        <span style="font-size:24px;font-weight:900;letter-spacing:-1px;color:#0f6fb0;">GO</span>
+        <span style="font-size:16px;font-weight:700;color:#0a1f2e;"> Aircon Services</span>
+      </div>
+      <div style="display:inline-block;margin-left:12px;background:#fff3e0;border-radius:8px;padding:5px 13px;vertical-align:middle;">
+        <span style="font-size:13px;font-weight:700;color:#e65100;">🏠 OCULAR VISIT REQUEST</span>
+      </div>
+      <h1 style="color:#fff;font-size:22px;font-weight:700;margin:12px 0 4px;">New ocular visit request</h1>
+      <p style="color:#ffccbc;margin:0;font-size:14px;">Reference: <strong style="color:#fff;">${escHtml(ref)}</strong></p>
+    </td></tr>
+
+    <!-- Body -->
+    <tr><td style="background:#ffffff;padding:32px 40px;">
+      <p style="font-size:15px;margin:0 0 20px;color:#56708a;line-height:1.6;">
+        A client is requesting an <strong style="color:#0a1f2e;">ocular visit</strong> to their location. Please coordinate and schedule a technician visit at the earliest convenient time.
+      </p>
+
+      <!-- Client Info -->
+      <p style="font-family:monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#e65100;margin:0 0 10px;font-weight:700;">Client Information</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff8f0;border-radius:12px;border:1px solid #ffe0b2;margin-bottom:24px;">
+        <tr><td style="padding:16px 20px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            ${row('Full name', name)}
+            ${row('Mobile', phone)}
+            ${row('Email', email || 'Not provided')}
+            ${row('Address', address, true)}
+          </table>
+        </td></tr>
+      </table>
+
+      <!-- Visit Details -->
+      <p style="font-family:monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#e65100;margin:0 0 10px;font-weight:700;">Visit Details</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff8f0;border-radius:12px;border:1px solid #ffe0b2;margin-bottom:28px;">
+        <tr><td style="padding:16px 20px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            ${row('Purpose', purpose)}
+            ${row('Preferred date', dateDisplay)}
+            ${row('Preferred time', pref_time)}
+            ${row('Notes', notes, true)}
+          </table>
+        </td></tr>
+      </table>
+
+      <!-- CTA -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+        <tr><td align="center">
+          <a href="${WEBSITE}" style="display:inline-block;background:#e65100;color:#fff;font-weight:700;font-size:15px;padding:13px 30px;border-radius:10px;text-decoration:none;">
+            Open Dashboard to Schedule →
+          </a>
+        </td></tr>
+      </table>
+
+      <p style="font-size:13px;color:#7d93a8;margin:0;line-height:1.6;">
+        Contact the client to confirm the schedule. Update the ocular visit status in the dashboard once the visit is arranged.
+      </p>
+    </td></tr>
+
+    <!-- Footer -->
+    <tr><td style="background:#103a5a;border-radius:0 0 16px 16px;padding:22px 40px;text-align:center;">
+      <p style="margin:0;font-size:12px;color:#7fb6d2;">
+        © ${new Date().getFullYear()} GO Aircon Services · Internal Notification<br/>
+        <a href="${WEBSITE}" style="color:#46c6ef;text-decoration:none;">${WEBSITE}</a>
+      </p>
+    </td></tr>
+
+  </table>
+  </td></tr>
+</table>
+</body></html>`
+
+  const text = `OCULAR VISIT REQUEST — ${ref}
+
+Client: ${name}
+Mobile: ${phone}
+Email: ${email || 'Not provided'}
+Address: ${address}
+
+Purpose: ${purpose}
+Preferred date: ${dateDisplay}${pref_time ? '\nPreferred time: ' + pref_time : ''}${notes ? '\nNotes: ' + notes : ''}
+
+Open dashboard: ${WEBSITE}`
+
+  return {
+    subject: `🏠 Ocular Visit Request — ${ref} | ${name}`,
+    html,
+    text,
+  }
+}
+
+
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -256,8 +361,10 @@ export default async function handler(req, res) {
     emailContent = buildBookingEmail(data)
   } else if (type === 'quotation') {
     emailContent = buildQuotationEmail(data)
+  } else if (type === 'ocular') {
+    emailContent = buildOcularEmail(data)
   } else {
-    return res.status(400).json({ error: 'Invalid type. Use "booking" or "quotation"' })
+    return res.status(400).json({ error: 'Invalid type. Use "booking", "quotation" or "ocular"' })
   }
 
   try {
