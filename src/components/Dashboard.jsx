@@ -183,6 +183,24 @@ export default function Dashboard({ user, logout, addToast }) {
     await loadAll(); setModal(null); addToast('Moderator removed', '', 'info')
   }
 
+  // ---- Password change permissions ----
+  // admin  → can change moderator & owner passwords (not other admins)
+  // moderator → can change owner passwords only (not admin, not peers)
+  // owner / anyone else → self only (handled in modal)
+  const canChangePassword = (actor, target) => {
+    if (!actor || !target) return false
+    if (actor.id === target.id) return true                          // self always allowed
+    if (actor.role === 'admin')     return target.role !== 'admin'   // admin → moderators & owners
+    if (actor.role === 'moderator') return target.role === 'owner'   // moderator → owners only
+    return false
+  }
+
+  const changePassword = async (targetId, newPassword) => {
+    const { error } = await db.staff().update({ password: newPassword }).eq('id', targetId)
+    if (error) { addToast('Error', error.message, 'err'); return }
+    await loadAll(); setModal(null); addToast('Password updated', 'The new password is active immediately.', 'ok')
+  }
+
   // ---- Calendar ----
   const calByDate = {}
   bookings.forEach(b => { const d = b.schedule || b.pref_date; if (d) { (calByDate[d] = calByDate[d] || []).push(b) } })
@@ -497,9 +515,21 @@ export default function Dashboard({ user, logout, addToast }) {
                       <td><span className={`role-badge role-${s.role}`}>{s.role}</span></td>
                       <td>{fmtDate((s.created_at||'').slice(0,10))}</td>
                       <td style={{textAlign:'right'}}>
-                        {s.id === user.id ? <span className="muted" style={{fontSize:'.77rem'}}>You</span>
-                          : s.role === 'admin' ? <span className="muted" style={{fontSize:'.77rem'}}>—</span>
-                          : <button className="btn btn-danger btn-sm" onClick={() => setModal({ type:'confirmRemove', data:s })}>Remove</button>}
+                        <div style={{display:'flex',gap:6,justifyContent:'flex-end',flexWrap:'wrap'}}>
+                          {s.id === user.id
+                            ? <button className="btn btn-soft btn-sm" onClick={() => setModal({ type:'changePassword', data:s })}>Change my password</button>
+                            : <>
+                                {canChangePassword(user, s) && (
+                                  <button className="btn btn-soft btn-sm" onClick={() => setModal({ type:'changePassword', data:s })}>
+                                    Change password
+                                  </button>
+                                )}
+                                {s.role !== 'admin' && user.role === 'admin' && (
+                                  <button className="btn btn-danger btn-sm" onClick={() => setModal({ type:'confirmRemove', data:s })}>Remove</button>
+                                )}
+                              </>
+                          }
+                        </div>
                       </td>
                     </tr>
                   ))}</tbody>
@@ -542,6 +572,14 @@ export default function Dashboard({ user, logout, addToast }) {
         </Modal>
       )}
       {modal?.type === 'addStaff' && <AddStaffModal onClose={() => setModal(null)} onAdd={addModerator} />}
+      {modal?.type === 'changePassword' && (
+        <ChangePasswordModal
+          target={modal.data}
+          actor={user}
+          onClose={() => setModal(null)}
+          onSave={changePassword}
+        />
+      )}
       {modal?.type === 'confirmRemove' && (
         <Modal onClose={() => setModal(null)}>
           <ModalHead title={`Remove ${modal.data.name}?`} onClose={() => setModal(null)} />
@@ -743,6 +781,71 @@ function OcularModal({ o, onClose, onSave, onDelete }) {
           </button>
           <button className="btn btn-danger" onClick={() => onDelete(o.id)}>Delete</button>
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+function ChangePasswordModal({ target, actor, onClose, onSave }) {
+  const [pass, setPass]       = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy]       = useState(false)
+  const [err, setErr]         = useState('')
+
+  const isSelf = actor.id === target.id
+
+  const submit = async e => {
+    e.preventDefault()
+    setErr('')
+    if (pass.length < 6) { setErr('Password must be at least 6 characters.'); return }
+    if (pass !== confirm) { setErr('Passwords do not match.'); return }
+    setBusy(true)
+    await onSave(target.id, pass)
+    setBusy(false)
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalHead
+        title={isSelf ? 'Change your password' : `Change password — ${target.name}`}
+        onClose={onClose}
+      />
+      <div className="modal-body">
+        {!isSelf && (
+          <div style={{
+            background:'var(--warn-bg)', color:'var(--warn)',
+            borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:'.85rem'
+          }}>
+            You are changing the password for <b>{target.name}</b>{' '}
+            <span className={`role-badge role-${target.role}`}>{target.role}</span>.
+            They will need to use this new password on their next login.
+          </div>
+        )}
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>New password <span className="req">*</span></label>
+            <input
+              type="password" value={pass} onChange={e => setPass(e.target.value)}
+              required minLength={6} placeholder="Min 6 characters" autoFocus
+            />
+          </div>
+          <div className="field">
+            <label>Confirm new password <span className="req">*</span></label>
+            <input
+              type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+              required minLength={6} placeholder="Re-enter password"
+            />
+          </div>
+          {err && (
+            <div style={{color:'var(--danger)',fontSize:'.85rem',marginBottom:10}}>{err}</div>
+          )}
+          <div style={{display:'flex',gap:10,marginTop:4}}>
+            <button type="button" className="btn btn-soft" style={{flex:1}} onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" style={{flex:1}} disabled={busy}>
+              {busy ? 'Saving…' : 'Update password'}
+            </button>
+          </div>
+        </form>
       </div>
     </Modal>
   )
